@@ -17,7 +17,7 @@ trusted. Every number has one of three provenances:
 |---|---|---|
 | **Code verification** | Does the code solve the stated equations correctly? | **Done** for geometry, kinematics, boundary conditions, rigid-body invariance, linear scaling and grid conservation (§2, §3, §9). One postprocessing error in the principal strains was found and fixed (§3.5). |
 | **Numerical convergence** | Are results insensitive to mesh resolution? | **Done** for bulk stress and strain indicators and for interface tractions (§4, §8). |
-| **Experimental validation** | Do the equations and parameters describe real biofilms on real bellows? | **Not done.** No measurements of our engineered biofilm's mechanics, adhesion or thickness under regulation, and no bellows kinematics data, have been compared with the model. |
+| **Experimental validation** | Do the equations and parameters describe real biofilms on real bellows? | **Not done.** No measurements of our engineered biofilm's mechanics or adhesion, of its thickness under any proposed thinning intervention, or of bellows kinematics have been compared with the model. |
 
 Verification and convergence show that the numbers are *correct solutions of the model*. Only validation could
 show that the *model describes reality*. Every conclusion in §11 is conditional on the assumptions in §10.
@@ -173,7 +173,7 @@ $\delta_Q=\lvert Q_{\text{fine}}-Q_{\text{coarse}}\rvert/\lvert Q_{\text{fine}}\
 | Max principal strain† | unregulated | 0.63 % | 0.82 % | 0.55 % |
 | | regulated | 0.45 % | 0.58 % | 0.52 % |
 
-**Convergence of the regulation effect (reduction, %)**
+**Convergence of the thinning effect (reduction, %)**
 
 | Elements | Max σ_e | Mean σ_e | Max strain |
 |---:|---:|---:|---:|
@@ -244,8 +244,8 @@ reduced, and the spread across pairs (about 10–15 percentage points) is much s
 
 **What it does not establish:**
 
-- robustness to uncertainty in $E$, $\nu$, bellows geometry or regulation strength;
-- that regulation actually halves thickness;
+- robustness to uncertainty in $E$, $\nu$, bellows geometry or the degree of thinning ($\alpha$ is fixed at 0.5);
+- that any biological intervention actually halves thickness;
 - any statistical statement about real ISS biofilms. The 20 samples come from a synthetic generator, not from
   imaged biofilms.
 
@@ -483,18 +483,22 @@ No fracture mechanics, damage, cohesive-zone model or removal criterion is imple
 $\sigma_t$ or $t_n^+$ marks **where loading is concentrated**, not where, when or how much biomass detaches.
 The model makes no claim about fragment sizes or filter clogging.
 
-### 10.12 γ-PGA may change material properties
+### 10.12 Biological interventions may change material properties
 
-γ-PGA contributes to biofilm formation and matrix properties in some *B. subtilis* strains.<sup>[L9, L10]</sup> We
-found no measured elastic modulus, cohesion or adhesion strength for γ-PGA-regulated biofilms. Assuming equal
-$E$ and $\nu$ for both members of a pair isolates the effect of geometry. If regulation softens the matrix, the
+The proposal's candidate thinning strategies (SinI/SinR control of matrix production, matrix-degrading enzymes,
+γ-PGA-associated dispersal) act on the extracellular matrix, so they may change stiffness, cohesion and adhesion
+as well as thickness. γ-PGA, for example, contributes to biofilm formation in some *B. subtilis*
+strains.<sup>[L9, L10]</sup> We found no measured elastic modulus, cohesion or adhesion strength for biofilms
+thinned by any of these routes. Assuming equal $E$ and $\nu$ for both members of a pair isolates the effect of
+geometry. If an intervention softens the matrix, the
 stresses in the regulated film would fall further, because stress is proportional to $E$; whether its
 *strength* falls more than its stress is unknown. This "strength-retention" question was explored only as a
 threshold-sensitivity map in the flat-substrate model (notebook 03), not for the bellows.
 
 ### 10.13 Hypothetical 50 % thickness reduction
 
-$\alpha=0.5$ is a scenario, not a measured outcome of our genetic construct. Uniform scaling also halves
+$\alpha=0.5$ is a controlled geometric scenario, not a simulated or measured outcome of any genetic construct.
+The FEM does not model gene expression or regulation. Uniform scaling also halves
 roughness and slopes (METHODOLOGY §3.3). Other values of $\alpha$, or non-uniform thinning, were not studied.
 
 ### 10.14 Element-averaged stress recovery
@@ -536,13 +540,14 @@ kinematics. Parameter values are illustrative and drawn from the literature on o
    scales with $h/R_0$).
 2. Sharper folds are mechanically more demanding locations for attached biofilm, and thickness reduction helps
    most there.
-3. If regulation does not weaken the biofilm in proportion, thinner biofilm could be mechanically less
+3. If a thinning intervention does not weaken the biofilm in proportion, thinner biofilm could be mechanically less
    vulnerable to bellows cycling.
 
 ### What the model cannot establish
 
 1. Whether any biofilm fractures, detaches or sloughs, or how much biomass is released.
-2. Whether γ-PGA regulation actually halves thickness, or how it alters stiffness, cohesion or adhesion.
+2. Whether any proposed intervention (SinI/SinR matrix control, matrix-degrading enzymes, γ-PGA-associated
+   dispersal) actually halves thickness, or how it alters stiffness, cohesion or adhesion.
 3. Absolute stress levels in real ISS biofilms, given the uncalibrated $E$ and $\nu$ and the absence of
    viscoelasticity.
 4. Behaviour under large bellows strokes, fluid loading, contact, or repeated cycling (fatigue).
@@ -566,5 +571,6 @@ Bibliographic details were checked against Crossref (title, authors, journal, vo
 - **[L10]** Yu Y, Yan F, Chen Y, Jin C, Guo J, Chai Y. Poly-γ-glutamic acids contribute to biofilm formation and plant root colonization in selected environmental isolates of *Bacillus subtilis*. *Frontiers in Microbiology* 7:1811 (2016). https://doi.org/10.3389/fmicb.2016.01811
 - **[R1]** Gilbert et al. (2020), ICES-2020-566 (ISS wastewater tank operations; bellows-fold biomass accumulation). Cited from the team's modelling master plan; a local PDF is in `../docs/lit/mech/`. **Full bibliographic details not independently verified.**
 
-No literature was found, or is cited, for the mechanical properties of γ-PGA-regulated *B. subtilis* biofilms,
+No literature was found, or is cited, for the mechanical properties of *B. subtilis* biofilms thinned by any of the
+proposed interventions,
 for biofilm adhesion strength on stainless steel, or for ISS bellows kinematics.

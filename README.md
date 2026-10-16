@@ -1,14 +1,21 @@
 # Biofilm Multiphysics: Structural Mechanics of Biofilm on a Flexing Bellows
 
-Computational component of an iGEM project on biofilm in the ISS wastewater tank. This repository contains a
-2D finite-element (FEM) model of a biofilm attached to one convolution of a metal bellows. It is used to ask how a
-hypothetical 50 % reduction in biofilm thickness, the intended effect of γ-PGA-mediated regulation in our
-engineered *Bacillus subtilis*, changes the mechanical loading the biofilm experiences when the bellows moves.
+Structural-mechanics component of the dry-lab modelling for an iGEM project on biofilm in the ISS wastewater
+tank. The project aims to engineer a *Bacillus subtilis* biofilm that competitively excludes undesirable
+microorganisms, can be formed and thinned through externally controlled regulation, and avoids the excessive
+accumulation that risks downstream clogging.
+
+This repository contains a 2D finite-element (FEM) model of a biofilm attached to one convolution of a metal
+bellows. It asks a mechanical question: how would a **hypothetical 50 % reduction in biofilm thickness** change
+the loading the biofilm experiences when the bellows moves? The FEM does not simulate gene expression or any
+specific regulatory mechanism. The thickness reduction is a controlled geometric scenario. The proposal's
+candidate thinning mechanisms (SinI/SinR matrix control, matrix-degrading enzymes, γ-PGA-associated dispersal)
+are not modelled here.
 
 ## Scientific objective
 
-Under identical prescribed bellows movement, compare *unregulated* and *regulated* (half-thickness) biofilms in
-terms of:
+Under identical prescribed bellows movement, compare two hypothetical thickness scenarios, *unregulated*
+(reference) and *regulated* (uniformly half-thickness, $h_r=0.5\,h_u$), in terms of:
 
 - internal loading: von Mises stress, principal tensile stress and principal tensile strain;
 - interfacial loading: normal and shear traction at the biofilm–metal interface.
@@ -157,7 +164,8 @@ The model is a verified **screening tool**, not a validated prediction:
 - Purely elastic, small-strain, plane-strain material; real biofilms are viscoelastic and heterogeneous.
 - The bellows geometry is idealized and its motion is prescribed, not computed.
 - Perfect adhesion; no self-contact, fracture, detachment or fluid loading.
-- The 50 % thickness reduction is hypothetical, and regulation is assumed not to change material properties.
+- The 50 % thickness reduction is a hypothetical geometric scenario, not a measured effect of any genetic
+  construct. Real interventions might also change stiffness, cohesion or adhesion, which are held fixed here.
 - No experimental validation.
 - Strain values changed in Stage 4, when a shear-strain convention error in the principal-strain calculation
   was fixed. Exploratory notebooks 02–04 still show the old strain values; stress results were unaffected

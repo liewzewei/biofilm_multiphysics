@@ -22,13 +22,28 @@ Processor Assembly. Wastewater fills the space between a metal bellows and the o
 reports describe biomass collecting in the bellows folds.<sup>[R1]</sup> When the bellows expands or contracts,
 its convolutions open and close, and biofilm stuck to the metal is deformed with it.
 
-**Biological hypothesis (not tested here).** Our iGEM project engineers a *Bacillus subtilis* biofilm whose
-thickness is regulated through poly-γ-glutamic acid (γ-PGA) production. In some *B. subtilis* strains γ-PGA
-contributes to biofilm formation.<sup>[L9, L10]</sup> For modelling purposes we represent successful
-regulation only as a **50 % reduction in biofilm thickness**. This is a hypothetical scenario, not a measured
-phenotype.
+**Project context.** The iGEM project aims to engineer a non-pathogenic *Bacillus subtilis* biofilm that:
 
-**Mechanical question.** Under identical bellows movement, how does halving the biofilm thickness change:
+1. establishes a beneficial biofilm that competitively excludes undesirable microorganisms;
+2. can be formed and thinned on demand through externally controlled regulation;
+3. prevents excessive accumulation and so reduces the risk of downstream clogging.
+
+These are the project's established objectives. The *means* of thinning is still a proposed implementation
+strategy. The proposal's design iterations consider SinI/SinR control of extracellular-matrix production,
+matrix-degrading enzymes and γ-PGA-associated dispersal, with external control by light and, at earlier stages,
+by chemical induction. In some *B. subtilis* strains γ-PGA contributes to biofilm formation.<sup>[L9, L10]</sup>
+None of these constructs has been experimentally validated in this project.
+
+**Role of this model.** The FEM is the structural-mechanics component of the dry-lab modelling effort, alongside
+models of flow and clogging, gene expression, ecology and competition, optogenetic kinetics, light penetrance
+and γ-PGA-driven dispersion. It does **not** simulate gene expression or any regulatory mechanism. It simulates
+the mechanical consequences of a *hypothetical change in biofilm thickness*: an *unregulated* (reference) profile
+and a *regulated* (thinned) profile $h_r=\alpha h_u$ with $\alpha=0.5$. The thinned profile is a controlled
+geometric assumption, not an established result of γ-PGA regulation or of any particular genetic circuit.
+Biological interventions may alter mechanical properties as well as geometry (Section 3.3).
+
+**Mechanical question.** Under identical bellows movement, how would a hypothetical halving of the biofilm
+thickness change:
 
 - the internal mechanical loading of the biofilm (von Mises stress, principal tensile stress and strain), and
 - the loading transmitted across the biofilm–metal interface (normal and shear traction)?
@@ -129,22 +144,24 @@ consequence of passing a normalized coordinate.
 **Parameters used** (bellows model): $h_0=10\ \mu$m, $R_q=3\ \mu$m, $N=10$, $h_{\min}=2\ \mu$m.
 The representative morphology uses seed 42; the ensemble uses seeds 0–19 via `np.random.default_rng(seed)`.
 
-### 3.3 Paired regulated / unregulated profiles
+### 3.3 Paired thickness scenarios (unregulated / regulated)
 
-For every random unregulated profile $h_u(s)$ we construct a regulated counterpart
+For every random reference (unregulated) profile $h_u(s)$ we construct a thinned (regulated) counterpart
 
 $$
 \boxed{h_r(s)=\alpha\,h_u(s),\qquad \alpha=0.5}.
 $$
 
-**[Assumption] Uniform thickness scaling.** Regulation is assumed to shrink the biofilm proportionally
-everywhere. This keeps the *shape* of the morphology, so each pair differs only by the regulation step, a
+**[Assumption] Uniform thickness scaling.** The thinned scenario shrinks the biofilm proportionally
+everywhere. This is a controlled geometric scenario, not a model of how any biological intervention actually
+thins a biofilm. It keeps the *shape* of the morphology, so each pair differs only by the thickness change, a
 controlled comparison. As a consequence, absolute roughness ($R_q\to\alpha R_q$) and surface slopes also scale
 by $\alpha$. The experiment therefore tests "the same biofilm, uniformly thinner", not "a different biofilm with
 lower mean thickness".
 
-**[Assumption] Unchanged material.** Both members of a pair have the same $E$ and $\nu$. γ-PGA regulation could
-change matrix stiffness and cohesion; that possibility is outside the present model (see
+**[Assumption] Unchanged material.** Both members of a pair have the same $E$ and $\nu$. A real thinning
+intervention, such as SinR-mediated matrix repression, matrix-degrading enzymes or γ-PGA-associated dispersal,
+could also change matrix stiffness, cohesion and adhesion; that possibility is outside the present model (see
 [VALIDATION_AND_LIMITATIONS.md §10](VALIDATION_AND_LIMITATIONS.md#10-scientific-limitations)).
 
 ---
@@ -642,7 +659,7 @@ For each seed $k=0,\dots,19$:
 
 **Why paired?** Morphology alone changes the stresses, because peaks concentrate under thick features near the
 fold. Comparing each regulated biofilm with *its own* unregulated parent removes this morphological variance
-from the comparison, so the spread of paired reductions measures how consistent the regulation effect is.
+from the comparison, so the spread of paired reductions measures how consistent the thinning effect is.
 
 ### 11.2 Controlled loading
 
@@ -664,7 +681,8 @@ are computed across the 20 per-pair values.
 
 A consistent sign and narrow spread across morphologies means the effect is a property of the thickness change
 under these assumptions, not of one particular random shape. The ensemble does **not** sample uncertainty in
-material parameters, bellows geometry or regulation strength; those are explored one at a time in Section 12.
+material parameters, bellows geometry or the degree of thinning $\alpha$; the first two are explored one at a
+time in Section 12, and $\alpha$ is fixed at 0.5.
 The results are reported in [VALIDATION_AND_LIMITATIONS.md §5](VALIDATION_AND_LIMITATIONS.md#5-stochastic-robustness).
 
 ---
@@ -781,8 +799,9 @@ same as conserving force.
 ## 14. Summary of the computational methodology
 
 1. **Geometry:** a seeded stochastic thickness $h(s)$ with fixed mean and RMS roughness, defined on the material
-   arc length of an idealized rounded V-shaped bellows convolution. A regulated twin is formed by uniform
-   scaling, $h_r=0.5\,h_u$.
+   arc length of an idealized rounded V-shaped bellows convolution. A hypothetical thinned
+   ("regulated") twin is formed by uniform scaling, $h_r=0.5\,h_u$. This is a geometric scenario, not a model of
+   gene regulation.
 2. **Kinematics:** the bellows opens from $60^\circ$ to $60.5^\circ$ without stretching. Fold arc length is kept
    via $R_1=R_0(\pi-\theta_0)/(\pi-\theta_1)$, and material points are tracked by $s$, giving the base
    displacement $\mathbf u_b(s)$.

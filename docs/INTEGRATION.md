@@ -14,7 +14,8 @@
 
 The structural model ([METHODOLOGY.md](METHODOLOGY.md)) computes where a biofilm attached to a flexing bellows
 fold is mechanically loaded: von Mises stress, principal tensile stress and strain. The dispersion model
-computes how cells, γ-PGA, nutrients and pressure evolve on a Cartesian grid. The interface puts the mechanical
+computes how cells, γ-PGA hydrogel, nutrients and pressure evolve on a Cartesian grid, representing
+γ-PGA-associated dispersal, one of the project's candidate thinning mechanisms. The interface puts the mechanical
 fields onto the dispersion grid, so that the two can be plotted, compared, or used in future coupling
 experiments (§17) without changing either model's equations.
 

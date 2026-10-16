@@ -59,9 +59,34 @@ md(r"""
 Biofilm can grow inside the convolutions of the metallic bellows in the ISS wastewater tank. When the bellows
 opens and closes, the metal surface moves, and that movement is passed into the attached biofilm.
 
+### Project context
+
+The iGEM project aims to engineer a non-pathogenic *Bacillus subtilis* biofilm that:
+
+1. establishes a beneficial biofilm that competitively excludes undesirable microorganisms;
+2. can be formed and thinned on demand through externally controlled regulation;
+3. prevents excessive accumulation and so reduces the risk of downstream clogging.
+
+These are the project's **established objectives**. *How* thinning would be achieved is still a **proposed
+implementation strategy**: the proposal's design iterations consider SinI/SinR control of extracellular-matrix
+production, matrix-degrading enzymes and γ-PGA-associated dispersal, with external control by light and, at
+earlier stages, by chemical induction. None of these constructs has been experimentally validated.
+
+### Role of this model
+
+This notebook is the **structural-mechanics component** of the dry-lab modelling effort. Other dry-lab models
+treat flow and clogging, gene expression, ecology and competition, optogenetic kinetics, light penetrance and
+γ-PGA-driven dispersion. The FEM does **not** simulate gene expression or any regulatory mechanism. It asks a
+narrower mechanical question: if the biofilm were thinner, how would its mechanical loading change?
+
 **Question.** Under identical bellows movement, how does a hypothetical 50 % reduction in biofilm thickness
-(the intended effect of our gamma-PGA regulation) change the mechanical loading inside the biofilm and at
-the biofilm–metal interface?
+change the mechanical loading inside the biofilm and at the biofilm–metal interface?
+
+**Thickness scenarios.** Throughout, *unregulated* and *regulated* label two **hypothetical thickness
+scenarios**: a reference profile $h_u(s)$ and a uniformly thinned profile $h_r(s)=\alpha h_u(s)$ with
+$\alpha=0.5$. This is a controlled geometric assumption. It is not an experimentally established outcome of
+γ-PGA expression or of any particular genetic circuit. A real intervention could change the biofilm's
+mechanical properties as well as its geometry (Section 18).
 
 **Scope of this notebook**
 
@@ -102,8 +127,9 @@ md(r"""
 5. **Plane strain.** $\varepsilon_{zz}=0$: the cross-section belongs to a long structure.
 6. **Quasi-static.** No inertia and no body forces. The exposed surface carries no fluid traction, so the
    bellows movement is the only load.
-7. **Regulation.** Regulation scales thickness, $h_r(s)=\alpha h_u(s)$ with $\alpha = 0.5$. Material properties
-   are unchanged by regulation.
+7. **Thickness scenario.** The thinned ("regulated") scenario is $h_r(s)=\alpha h_u(s)$ with $\alpha = 0.5$, a
+   controlled geometric assumption. Both scenarios have the same material properties, so the comparison
+   isolates the effect of geometry.
 
 **Consequences.** Linear elasticity means that, for a fixed geometry, stresses scale linearly with the
 prescribed displacement and with $E$. Percentage *reductions* between paired biofilms therefore do not depend
@@ -261,8 +287,9 @@ Profiles thinner than $h_{\min}=2\ \mu\mathrm m$ anywhere are rejected and redra
 **Physical meaning.** $h_0$ sets how much biomass there is. The Gaussian features represent colonies and
 valleys with length scales of tens of micrometres.
 
-**Regulated counterpart.** $h_r(s)=\alpha h_u(s)$ with $\alpha=0.5$. Each pair shares one morphology, so the
-paired comparison isolates this scaling. Note that the scaling also halves absolute roughness and slopes.
+**Thinned ("regulated") scenario.** $h_r(s)=\alpha h_u(s)$ with $\alpha=0.5$. Each pair shares one morphology,
+so the paired comparison isolates this scaling. Note that the scaling also halves absolute roughness and slopes.
+This is a hypothetical thickness scenario, not the output of a biological model.
 
 **Numerical implementation.** `random_height_profile` from `src/stochastic_geometry.py`, evaluated on a
 uniform arc-length grid in μm (built in Section 6).
@@ -1476,8 +1503,10 @@ md(r"""
 - **Linear, small strain.** Finite rotation of the flanks is handled by a linearized model, which is why
   small $\Delta\theta$ is used. Larger movements would need a geometrically nonlinear formulation.
 - **Perfect adhesion and plane strain.** There is no interfacial slip, and the domain is a 2D cross-section.
-- **Regulation model.** $h_r=0.5\,h_u$ also halves roughness, and regulation is assumed not to change
-  material properties.
+- **Thickness scenario, not biology.** $h_r=0.5\,h_u$ is a controlled geometric assumption, not a simulated or
+  measured effect of any genetic construct. A real intervention, such as matrix repression, matrix degradation
+  or γ-PGA-associated dispersal, may also change stiffness, cohesion and adhesion; all of these are held fixed
+  here. Uniform scaling also halves roughness.
 - **Element-averaged P1 stresses.** Peak values and interface tractions depend on the mesh (Section 17b).
   The strip ends, where clamped and free boundaries meet, are included in the reported maxima.
 - **Fold-radius study.** The original study used a smooth ramp thickness profile (Section 15b). The corrected
