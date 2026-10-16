@@ -86,7 +86,7 @@ change the mechanical loading inside the biofilm and at the biofilm–metal inte
 scenarios**: a reference profile $h_u(s)$ and a uniformly thinned profile $h_r(s)=\alpha h_u(s)$ with
 $\alpha=0.5$. This is a controlled geometric assumption. It is not an experimentally established outcome of
 γ-PGA expression or of any particular genetic circuit. A real intervention could change the biofilm's
-mechanical properties as well as its geometry (Section 18).
+mechanical properties as well as its geometry (Sections 16 and 19).
 
 **Scope of this notebook**
 
@@ -95,6 +95,7 @@ mechanical properties as well as its geometry (Section 18).
 - 2D plane-strain, small-strain, linear-elastic FEM driven by prescribed substrate displacement.
 - Indicators reported: von Mises stress, principal tensile stress and strain, and interfacial normal and
   shear traction.
+- A Picioreanu-inspired cohesive threshold analysis (overstressed-area fraction under assumed strengths).
 - Mapping of FEM fields onto a Cartesian grid so they can be coupled to a grid-based dispersion model.
 
 **Outside the scope:** fracture, detachment, adhesion failure, fluid flow, viscoelasticity, and any
@@ -214,7 +215,8 @@ NY_THICKNESS = 15             # element layers through thickness
 E_PA = 64.0                   # Young's modulus (Pa), illustrative
 NU = 0.3                      # Poisson's ratio, illustrative
 
-CONDITIONS = ("unregulated", "regulated")
+CONDITIONS = ("unregulated", "regulated")   # code keys; shown as the labels below
+THICKNESS_LABEL = {"unregulated": "Baseline thickness (α = 1.0)", "regulated": "Reduced thickness (α = 0.5)"}
 
 # Registry of numerical checks: keyed by name, so re-running a cell overwrites its entry
 verification_checks = {}
@@ -258,6 +260,11 @@ PREVIOUS_RESULTS = {
     "ensemble_max_strain_reduction_pct": 57.15,           # pre-fix shear convention
     "ensemble_max_vm_reduction_pct": 59.57,
     "ensemble_mean_vm_reduction_pct": 52.22,
+    # Section 16: cohesive analysis at sigma_c = 0.1 Pa (notebook 04, section 45)
+    "cohesive_max_FI_baseline_0p1": 2.694,
+    "cohesive_max_FI_reduced_0p1": 1.063,
+    "cohesive_f_over_baseline_0p1_pct": 1.78,
+    "cohesive_f_over_reduced_0p1_pct": 0.11,
 }
 """)
 
@@ -518,7 +525,7 @@ for c in CONDITIONS:
 fig, axes = plt.subplots(1, 2, figsize=(14, 4.5), constrained_layout=True)
 
 for c in CONDITIONS:
-    axes[0].plot(s_um, thickness_um[c], lw=2, label=c)
+    axes[0].plot(s_um, thickness_um[c], lw=2, label=THICKNESS_LABEL[c])
 axes[0].set_xlabel("Material coordinate s (μm)")
 axes[0].set_ylabel("Thickness h(s) (μm)")
 axes[0].set_title(f"Paired thickness profiles (seed {REFERENCE_SEED})")
@@ -629,7 +636,7 @@ for ax, zoom in zip(axes, [False, True]):
                mesh_u["triangles"], lw=0.25, color="gray")
     for c, color in zip(CONDITIONS, ["tab:blue", "tab:orange"]):
         top = paired_meshes[c]["points_um"][paired_meshes[c]["boundaries"]["top"]]
-        ax.plot(top[:, 0], top[:, 1], color=color, lw=1.5, label=f"exposed surface ({c})")
+        ax.plot(top[:, 0], top[:, 1], color=color, lw=1.5, label=f"exposed surface, {THICKNESS_LABEL[c]}")
     ax.plot(substrate_ref_um[:, 0], substrate_ref_um[:, 1], "k-", lw=2, label="bellows surface")
     ax.set_aspect("equal")
     ax.set_xlabel("x (μm)")
@@ -854,7 +861,7 @@ def plot_pair(values, label, cmap, nodal, title, zoom=False, vmin=0.0):
             im = ax.tripcolor(res["points_um"][:, 0], res["points_um"][:, 1], res["triangles"],
                               facecolors=values[c], shading="flat", **kwargs)
         ax.set_aspect("equal")
-        ax.set_title(c.capitalize())
+        ax.set_title(THICKNESS_LABEL[c])
         ax.set_xlabel("x (μm)")
         ax.set_ylabel("y (μm)")
         if zoom:
@@ -1043,8 +1050,8 @@ fig, axes = plt.subplots(2, 1, figsize=(10, 7), sharex=True, constrained_layout=
 for c in CONDITIONS:
     lengths = interface_results[c]["lengths"]
     s_mid = np.cumsum(lengths) - 0.5 * lengths
-    axes[0].plot(s_mid, np.maximum(interface_results[c]["normal_traction"], 0), label=c)
-    axes[1].plot(s_mid, np.abs(interface_results[c]["shear_traction"]), label=c)
+    axes[0].plot(s_mid, np.maximum(interface_results[c]["normal_traction"], 0), label=THICKNESS_LABEL[c])
+    axes[1].plot(s_mid, np.abs(interface_results[c]["shear_traction"]), label=THICKNESS_LABEL[c])
 axes[0].set_ylabel("Tensile normal traction $t_n^+$ (Pa)")
 axes[0].set_title("Loading at the biofilm–bellows interface (60° → 60.5°)")
 axes[1].set_ylabel("Shear traction $|t_s|$ (Pa)")
@@ -1161,8 +1168,8 @@ display(angle_reduction.round(3))
 fig, axes = plt.subplots(1, 2, figsize=(12, 4), constrained_layout=True)
 for c in CONDITIONS:
     sub = angle_df[angle_df.condition == c]
-    axes[0].plot(sub.delta_theta_deg, sub.max_von_mises_Pa, "o-", label=c)
-    axes[1].plot(sub.delta_theta_deg, sub.mean_von_mises_Pa, "o-", label=c)
+    axes[0].plot(sub.delta_theta_deg, sub.max_von_mises_Pa, "o-", label=THICKNESS_LABEL[c])
+    axes[1].plot(sub.delta_theta_deg, sub.mean_von_mises_Pa, "o-", label=THICKNESS_LABEL[c])
 axes[0].set_ylabel("Max von Mises stress (Pa)")
 axes[1].set_ylabel("Area-weighted mean von Mises stress (Pa)")
 for ax in axes:
@@ -1267,7 +1274,7 @@ for study_label, marker in [("original (s/L_s)", "s--"), ("corrected (s in μm)"
     for c, color in zip(CONDITIONS, ["tab:blue", "tab:orange"]):
         sub = radius_df[(radius_df.study == study_label) & (radius_df.condition == c)]
         axes[1].plot(sub.radius_um, sub.max_von_mises_Pa, marker, color=color,
-                     label=f"{c}, {study_label}")
+                     label=f"{THICKNESS_LABEL[c]}, {study_label}")
     red = radius_reduction.loc[study_label]["max_von_mises_Pa reduction (%)"]
     axes[2].plot(red.index, red.values, marker, color="k", label=study_label)
 
@@ -1326,7 +1333,303 @@ record_check(
 
 # =====================================================================
 md(r"""
-## 16. FEM-to-Grid Mapping
+## 16. Picioreanu-Inspired Cohesive Vulnerability Analysis
+
+### Motivation and reference
+
+Sections 10–15 show that thinning lowers the *stress* generated by bellows movement. Whether lower stress means
+lower *vulnerability* also depends on how strong the biofilm is. Picioreanu, van Loosdrecht and Heijnen (2001),
+*Two-dimensional model of biofilm detachment caused by internal stress from liquid flow* (Biotechnology and
+Bioengineering 72(2):205–218), assumed that biofilm breaks where an equivalent stress exceeds a **cohesion
+strength** $\sigma_c$. They called it $\sigma_t$, and justified it with the maximum-distortion-energy theory.
+Here we apply the same threshold idea, as postprocessing, to the bellows-driven stress fields computed above.
+
+**How this differs from the original detachment algorithm**
+
+| | Picioreanu et al. (2001) | This notebook |
+|---|---|---|
+| Load | Liquid flow (pressure and shear on the biofilm surface) | Prescribed bellows displacement of the base |
+| Equivalent stress | Their eq. (1): $\sigma_e^2=\sigma_X^2-\sigma_X\sigma_Y+\sigma_Y^2+3\tau_{XY}^2$ (no $\sigma_{zz}$ term) | Our existing 3D von Mises stress including $\sigma_{zz}=\nu(\sigma_{xx}+\sigma_{yy})$ (Section 8), **unchanged** |
+| What happens above threshold | Element turned into liquid; flow, stress and growth recomputed iteratively | Nothing: elements are only **flagged**; no deletion, no re-equilibration, no geometry update |
+| Cohesion vs. adhesion | Assumed equal | Threshold applied to bulk elements only; interface tractions are reported separately (Section 13) |
+| Output | Detached biomass and evolving biofilm shape | Overstressed-area fraction, a hypothetical vulnerability indicator |
+
+### Failure index and overstressed-area fraction
+
+For each element $k$, with von Mises stress $\sigma_{e,k}$ and an *assumed* cohesion strength $\sigma_c$:
+
+$$
+\boxed{FI_k=\frac{\sigma_{e,k}}{\sigma_c}},\qquad \text{threshold exceeded if } FI_k>1,
+$$
+
+$$
+\boxed{f_{\mathrm{over}}=\frac{\sum_k A_k\,\mathbb 1(\sigma_{e,k}>\sigma_c)}{\sum_k A_k}}
+$$
+
+Here $\mathbb 1$ is the indicator function and $A_k$ is the element area. $f_{\mathrm{over}}$ is the
+**overstressed-area fraction**: the fraction of a biofilm's own cross-sectional area whose equivalent stress
+exceeds the assumed strength. It is *not* a fractured or detached fraction.
+
+**Numerical implementation.** The helper below is a few lines of postprocessing on the solver outputs
+`sigma_e` (Pa) and `areas` (m²). It is the same calculation as `cohesive_failure_metrics` in
+`04_bellows_deformation.ipynb` and is checked analytically before use.
+""")
+
+code(r"""
+def cohesive_failure_metrics(result, strength):
+    # Failure index, overstressed mask and area-weighted overstressed fraction
+    if strength <= 0:
+        raise ValueError("Cohesion strength must be positive.")
+    failure_index = np.asarray(result["sigma_e"], dtype=float) / strength
+    overstressed = failure_index > 1.0
+    areas = np.asarray(result["areas"], dtype=float)
+    return {
+        "failure_index": failure_index,
+        "overstressed": overstressed,
+        "area_fraction": float(areas[overstressed].sum() / areas.sum()),
+        "overstressed_area_um2": float(areas[overstressed].sum() / UM**2),
+        "max_failure_index": float(failure_index.max()),
+    }
+
+
+# Analytical verification on a synthetic three-element "mesh"
+synthetic = {"sigma_e": np.array([0.05, 0.10, 0.20]), "areas": np.array([1.0, 2.0, 3.0])}
+t_mid = cohesive_failure_metrics(synthetic, strength=0.15)    # only element 3 exceeds 0.15 Pa
+t_high = cohesive_failure_metrics(synthetic, strength=10.0)   # nothing exceeds
+t_low = cohesive_failure_metrics(synthetic, strength=0.001)   # everything exceeds
+t_tie = cohesive_failure_metrics(synthetic, strength=0.10)    # FI = 1 exactly is NOT exceedance
+
+record_check(
+    "Failure index: analytical threshold tests",
+    f"f(0.15 Pa) = {t_mid['area_fraction']:.3f}, f(10) = {t_high['area_fraction']}, "
+    f"f(0.001) = {t_low['area_fraction']}, f(0.10, tie) = {t_tie['area_fraction']:.3f}",
+    "0.5, 0, 1 and 0.5 (strict inequality)",
+    np.array_equal(t_mid["overstressed"], [False, False, True])
+    and np.isclose(t_mid["area_fraction"], 0.5)
+    and t_high["area_fraction"] == 0.0 and t_low["area_fraction"] == 1.0
+    and np.isclose(t_tie["area_fraction"], 0.5),
+)
+""")
+
+md(r"""
+### 16a. Representative pair at one assumed strength
+
+We evaluate the seed-42 pair from Section 10 at $\sigma_c=0.1$ Pa, the strength used in notebook 04. This
+value is **assumed**, not measured. Because each biofilm's overstressed fraction is normalized by its own area,
+the absolute overstressed area is listed too. Neither quantity is detached biomass.
+""")
+
+code(r"""
+SIGMA_C_REFERENCE = 0.1   # Pa, assumed
+
+cohesive_pair = {c: cohesive_failure_metrics(paired_results[c], SIGMA_C_REFERENCE) for c in CONDITIONS}
+cohesive_table = pd.DataFrame({
+    THICKNESS_LABEL[c]: {
+        "max failure index": cohesive_pair[c]["max_failure_index"],
+        "overstressed-area fraction (%)": 100 * cohesive_pair[c]["area_fraction"],
+        "overstressed area (μm²)": cohesive_pair[c]["overstressed_area_um2"],
+        "total biofilm area (μm²)": paired_results[c]["areas"].sum() / UM**2,
+    }
+    for c in CONDITIONS
+}).T
+display(cohesive_table.round(3))
+
+record_check(
+    "Cohesive metrics at 0.1 Pa reproduce notebook 04",
+    f"FI_max {cohesive_pair['unregulated']['max_failure_index']:.3f}/{cohesive_pair['regulated']['max_failure_index']:.3f}, "
+    f"f_over {100*cohesive_pair['unregulated']['area_fraction']:.2f}%/{100*cohesive_pair['regulated']['area_fraction']:.2f}%",
+    "matches 2.694/1.063 and 1.78%/0.11% (rounding)",
+    np.isclose(cohesive_pair["unregulated"]["max_failure_index"], PREVIOUS_RESULTS["cohesive_max_FI_baseline_0p1"], atol=5e-4)
+    and np.isclose(cohesive_pair["regulated"]["max_failure_index"], PREVIOUS_RESULTS["cohesive_max_FI_reduced_0p1"], atol=5e-4)
+    and np.isclose(100 * cohesive_pair["unregulated"]["area_fraction"], PREVIOUS_RESULTS["cohesive_f_over_baseline_0p1_pct"], atol=5e-3)
+    and np.isclose(100 * cohesive_pair["regulated"]["area_fraction"], PREVIOUS_RESULTS["cohesive_f_over_reduced_0p1_pct"], atol=5e-3),
+)
+
+plot_pair({c: cohesive_pair[c]["failure_index"] for c in CONDITIONS},
+          f"Failure index FI = σe / σc   (σc = {SIGMA_C_REFERENCE} Pa, assumed)", "magma", nodal=False, zoom=True,
+          title="Cohesive failure index near the fold")
+""")
+
+md(r"""
+### 16b. Sensitivity to the assumed cohesion strength
+
+The cohesion strength of our engineered biofilm is unknown. We therefore sweep
+$\sigma_c\in[0.01,\,1.0]$ Pa (200 log-spaced values). This is an **exploratory** range. Picioreanu et al. used
+0.4 and 1.0 Pa; the lower values here are our own assumptions, not values established by that paper.
+
+Because the problem is linear (Section 15; `docs/METHODOLOGY.md` §12), $\sigma_e\propto E\,\Delta\theta$ at fixed
+geometry. Every curve below therefore depends on $\sigma_c/(E\,\Delta\theta)$, not on $\sigma_c$ alone. For
+example, doubling the assumed $E$ shifts the curves to twice the strength.
+""")
+
+code(r"""
+strength_values = np.geomspace(0.01, 1.0, 200)
+vulnerability_curves = {
+    c: np.array([cohesive_failure_metrics(paired_results[c], sc)["area_fraction"] for sc in strength_values])
+    for c in CONDITIONS
+}
+
+reduced_worse = strength_values[vulnerability_curves["regulated"] > vulnerability_curves["unregulated"]]
+both_zero_from = strength_values[(vulnerability_curves["unregulated"] == 0)
+                                 & (vulnerability_curves["regulated"] == 0)].min()
+
+record_check(
+    "Reduced thickness never more overstressed at equal strength (0.01-1 Pa)",
+    f"{len(reduced_worse)} of {len(strength_values)} strengths with f_reduced > f_baseline",
+    "0",
+    len(reduced_worse) == 0,
+)
+record_check(
+    "Overstressed fractions vanish above the maximum stress",
+    f"both zero from σc = {both_zero_from:.4f} Pa; max σe = {paired_results['unregulated']['global_peak']:.4f} Pa",
+    "first zero-strength ≥ max σe of baseline biofilm",
+    both_zero_from >= paired_results["unregulated"]["global_peak"],
+)
+
+fig, ax = plt.subplots(figsize=(9, 5))
+for c in CONDITIONS:
+    ax.plot(strength_values, 100 * vulnerability_curves[c], lw=2, label=THICKNESS_LABEL[c])
+for sc in (0.4, 1.0):
+    ax.axvline(sc, color="gray", ls=":", lw=1)
+ax.text(0.4, ax.get_ylim()[1] * 0.9, " σc used by\n Picioreanu et al.", color="gray", fontsize=8)
+ax.set_xscale("log")
+ax.set_xlabel("Assumed cohesion strength σc (Pa)")
+ax.set_ylabel("Overstressed-area fraction f_over (%)")
+ax.set_title("Cohesive Vulnerability vs Assumed Biofilm Strength")
+ax.legend()
+ax.grid(alpha=0.2)
+plt.show()
+""")
+
+md(r"""
+### 16c. Strength-retention sensitivity
+
+A biological intervention that thins a biofilm may also weaken or strengthen its matrix. We therefore allow the
+reduced-thickness biofilm a different cohesion strength:
+
+$$
+\boxed{\beta=\frac{\sigma_{c,\mathrm{reduced}}}{\sigma_{c,\mathrm{baseline}}}},\qquad
+\sigma_{c,\mathrm{reduced}}=\beta\,\sigma_{c,\mathrm{baseline}},
+$$
+
+$$
+\boxed{\Delta f=f_{\mathrm{over,reduced}}(\beta\,\sigma_{c,\mathrm{baseline}})-f_{\mathrm{over,baseline}}(\sigma_{c,\mathrm{baseline}})}
+$$
+
+- $\beta=1$: strength unchanged. $\beta<1$: the reduced-thickness biofilm is weaker. $\beta>1$: it is stronger.
+- $\Delta f<0$ (blue): the reduced-thickness biofilm has the smaller overstressed-area fraction.
+- $\Delta f>0$ (red): it has the larger fraction.
+- $\Delta f=0$ (white, black contour): the fractions are equal.
+
+The grid matches notebook 04: baseline strengths 0.01–0.35 Pa (120 values) and $\beta$ 0.2–1.2 (100 values).
+Since $f_{\mathrm{over,reduced}}$ can only fall as its threshold rises, $\Delta f$ is non-increasing in $\beta$.
+For each baseline strength there is therefore a single **crossover** $\beta^*$ below which thinning no longer
+lowers the overstressed fraction. Values of $\beta^*$ are computed below, not read off the colour map.
+""")
+
+code(r"""
+baseline_strengths = np.linspace(0.01, 0.35, 120)
+beta_values = np.linspace(0.2, 1.2, 100)
+
+sigma_b, sigma_r = paired_results["unregulated"]["sigma_e"], paired_results["regulated"]["sigma_e"]
+w_b = paired_results["unregulated"]["areas"] / paired_results["unregulated"]["areas"].sum()
+w_r = paired_results["regulated"]["areas"] / paired_results["regulated"]["areas"].sum()
+
+f_baseline = (w_b[:, None] * (sigma_b[:, None] > baseline_strengths[None, :])).sum(axis=0)
+f_reduced = np.array([
+    (w_r[:, None] * (sigma_r[:, None] > (beta * baseline_strengths)[None, :])).sum(axis=0)
+    for beta in beta_values
+])
+delta_f = f_reduced - f_baseline[None, :]
+
+# Sign convention check: with strength unchanged (beta = 1), thinning never increases f_over
+f_reduced_beta1 = (w_r[:, None] * (sigma_r[:, None] > baseline_strengths[None, :])).sum(axis=0)
+record_check(
+    "Phase diagram sign convention: Δf ≤ 0 at β = 1",
+    f"max Δf(β=1) = {np.max(f_reduced_beta1 - f_baseline):.2e}",
+    "≤ 0",
+    np.all(f_reduced_beta1 - f_baseline <= 0),
+)
+# Cross-check one heatmap entry against the direct helper
+i_chk, j_chk = 40, 30
+direct = (cohesive_failure_metrics(paired_results["regulated"], beta_values[i_chk] * baseline_strengths[j_chk])["area_fraction"]
+          - cohesive_failure_metrics(paired_results["unregulated"], baseline_strengths[j_chk])["area_fraction"])
+record_check(
+    "Phase diagram entry matches direct failure-index calculation",
+    f"{delta_f[i_chk, j_chk]:.6f} vs {direct:.6f}",
+    "identical",
+    np.isclose(delta_f[i_chk, j_chk], direct, atol=1e-12),
+)
+
+
+def crossover_beta(sigma_c_baseline, betas=np.linspace(0.2, 1.2, 1001)):
+    # Largest beta at which the reduced-thickness biofilm is still MORE overstressed (Δf > 0)
+    f_b = cohesive_failure_metrics(paired_results["unregulated"], sigma_c_baseline)["area_fraction"]
+    df = np.array([cohesive_failure_metrics(paired_results["regulated"], b * sigma_c_baseline)["area_fraction"] - f_b
+                   for b in betas])
+    worse = np.where(df > 0)[0]
+    return (betas[worse.max()] if len(worse) else np.nan), f_b
+
+
+crossover_table = pd.DataFrame(
+    [{"baseline σc (Pa)": sc, "f_over baseline (%)": 100 * fb, "crossover β*": bs}
+     for sc in (0.03, 0.05, 0.10, 0.20, 0.25) for bs, fb in [crossover_beta(sc)]]
+).set_index("baseline σc (Pa)")
+display(crossover_table.round(3))
+
+fig, ax = plt.subplots(figsize=(10, 6))
+limit = np.max(np.abs(delta_f))
+im = ax.pcolormesh(baseline_strengths, beta_values, delta_f, shading="auto",
+                   cmap="RdBu_r", vmin=-limit, vmax=limit)
+ax.contour(baseline_strengths, beta_values, delta_f, levels=[0.0], colors="black", linewidths=1)
+fig.colorbar(im, ax=ax, label="Δf = f_over,reduced − f_over,baseline")
+ax.axhline(1.0, color="gray", ls="--", label="Strength unchanged (β = 1)")
+ax.plot(crossover_table.index, crossover_table["crossover β*"], "ko", ms=4, label="Computed crossover β*")
+ax.set_xlabel("Baseline assumed cohesion strength σc,baseline (Pa)")
+ax.set_ylabel("Strength-retention factor β")
+ax.set_title("Effect of Cohesion Strength on Mechanical Vulnerability")
+ax.legend(loc="upper right")
+plt.show()
+""")
+
+md(r"""
+### 16d. Interpretation and limitations
+
+**Scientific interpretation.** Reducing biofilm thickness lowers the stress generated by bellows deformation.
+Whether that translates into lower cohesive vulnerability depends on the biofilm's strength. At equal assumed
+strength ($\beta=1$), the reduced-thickness biofilm is never more overstressed anywhere in the tested range.
+If thinning also costs enough strength ($\beta<\beta^*$), the advantage reverses. The computed crossover
+$\beta^*$ depends on the assumed baseline strength and on the spatial distribution of stress; it is not a
+universal constant. Two effects compete:
+
+- **A. Geometric thinning** lowers the calculated stress.
+- **B. Loss of cohesion strength** lowers the stress needed to exceed the threshold.
+
+**What these results cannot tell us**
+
+- The actual cohesion strength of our biofilm, or how any proposed intervention (SinI/SinR matrix control,
+  matrix-degrading enzymes, γ-PGA-associated dispersal) changes it. $\sigma_c$ and $\beta$ are scanned, not
+  known.
+- Detachment probability, detached biomass or fragment size. Elements are flagged, not removed. There is no
+  crack propagation, re-equilibration or geometry update.
+- That thinning always reduces downstream clogging risk.
+
+**Reading the plots correctly**
+
+- White regions where *both* fractions are zero, at high strength, only mean that neither biofilm exceeds the
+  threshold. They do **not** show that the two biofilms are mechanically equivalent.
+- $f_{\mathrm{over}}$ is normalized by each biofilm's own area. A larger fraction does not necessarily mean
+  more vulnerable biomass in absolute terms; see the absolute areas in Section 16a.
+- Von Mises stress is a distortion-energy measure developed for ductile solids. Using it as a cohesive-failure
+  criterion for a soft, viscoelastic biofilm follows Picioreanu et al. but is unvalidated. The threshold
+  applies to cohesion inside the biofilm, not to adhesion at the metal; interface tractions are in Section 13.
+- Mesh convergence of $\sigma_e$ (Section 18b) supports the *numerical* reliability of these fractions near
+  the stress peak. It says nothing about their experimental validity.
+""")
+
+# =====================================================================
+md(r"""
+## 17. FEM-to-Grid Mapping
 
 **Purpose.** The dispersion model runs on a Cartesian grid, while the FEM uses an unstructured triangular
 mesh. Mapping between them changes neither model.
@@ -1409,9 +1712,9 @@ plt.show()
 
 # =====================================================================
 md(r"""
-## 17. Numerical Verification Summary
+## 18. Numerical Verification Summary
 
-### 17a. Checks run in this notebook
+### 18a. Checks run in this notebook
 
 Every check below was evaluated during this run. A failing check stops execution through an `assert`.
 """)
@@ -1423,7 +1726,7 @@ print(f"{int(verification_df['passed'].sum())}/{len(verification_df)} checks pas
 """)
 
 md(r"""
-### 17b. Convergence studies (previously obtained, not rerun)
+### 18b. Convergence studies (previously obtained, not rerun)
 
 These mesh-refinement studies were run in `04_bellows_deformation.ipynb` on the seed-42 reference profile.
 Meshes were refined both along $s$ ($N$) and through the thickness ($n_y$), and
@@ -1461,7 +1764,7 @@ about 5 %.
 **Flat substrate (02).** Interior peak σe converged (0.14 %); the global peak at the fixed-base corners did
 not (7.8 %). The curved model reports the global maximum, which converged in the table above.
 
-### 17c. Other verifications previously obtained
+### 18c. Other verifications previously obtained
 
 - The zero-displacement test now runs in Section 10. In `04_bellows_deformation.ipynb` it was written in a
   Markdown cell and never executed, so it is **not** a previous result.
@@ -1475,7 +1778,7 @@ not (7.8 %). The curved model reports the global maximum, which converged in the
 
 # =====================================================================
 md(r"""
-## 18. Scientific Conclusions and Limitations
+## 19. Scientific Conclusions and Limitations
 
 ### Conclusions (within the model assumptions)
 
@@ -1488,16 +1791,21 @@ md(r"""
    traction by about 49–72 %, depending on whether peak or mean values are compared (Sections 12–13).
 3. **Robustness.** The reductions hold across opening-angle changes and fold radii, are independent of $E$,
    and vary only modestly with $\nu$ (Section 15). Stress grows as the fold gets sharper.
-4. **Numerical reliability.** The mesh, kinematics, boundary conditions, rigid-body invariance and grid
-   conservation checks all pass (Section 17a). Previously obtained refinement studies show changes below
+4. **Thickness and strength must be considered together.** At equal assumed cohesion strength, the
+   reduced-thickness biofilm is never more overstressed than the baseline (0.01–1 Pa). If thinning also costs
+   cohesion strength, the advantage reverses below a crossover strength-retention factor $\beta^*$, which
+   depends on the assumed baseline strength (Section 16). Neither strength is known.
+5. **Numerical reliability.** The mesh, kinematics, boundary conditions, rigid-body invariance and grid
+   conservation checks all pass (Section 18a). Previously obtained refinement studies show changes below
    0.3 % for the bulk indicators.
 
 ### Limitations
 
 - **Illustrative material.** $E$ and $\nu$ are not measured. Absolute stresses scale with $E$ and should not
   be compared with real strength values.
-- **No failure model.** The indicators describe loading only. No fracture, detachment, adhesion failure or
-  cohesive strength is modelled or claimed.
+- **No failure model.** The indicators describe loading only. The cohesive analysis (Section 16) flags
+  elements above an *assumed* strength. It does not simulate fracture, element removal, detachment or adhesion
+  failure, and the cohesion strength is not calibrated.
 - **Prescribed kinematics.** Bellows movement is imposed geometrically, not computed from the metal's
   mechanics. The geometry is idealized and not taken from the ISS hardware.
 - **Linear, small strain.** Finite rotation of the flanks is handled by a linearized model, which is why
@@ -1507,7 +1815,7 @@ md(r"""
   measured effect of any genetic construct. A real intervention, such as matrix repression, matrix degradation
   or γ-PGA-associated dispersal, may also change stiffness, cohesion and adhesion; all of these are held fixed
   here. Uniform scaling also halves roughness.
-- **Element-averaged P1 stresses.** Peak values and interface tractions depend on the mesh (Section 17b).
+- **Element-averaged P1 stresses.** Peak values and interface tractions depend on the mesh (Section 18b).
   The strip ends, where clamped and free boundaries meet, are included in the reported maxima.
 - **Fold-radius study.** The original study used a smooth ramp thickness profile (Section 15b). The corrected
   run should be preferred for conclusions about fold radius.

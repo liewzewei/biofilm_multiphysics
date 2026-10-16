@@ -62,6 +62,7 @@ detachment, because no failure law is modelled.
                               └──► resample_bellows ────────┴──► solve_curved_biofilm ──► indicators
                                    (common material grid s)      (SfePy, plane strain)      │
                                                                                             ├─► calculate_interface_traction
+                                                                                            ├─► cohesive threshold (σe vs assumed σc)
                                                                                             └─► fem_to_grid (Cartesian grid)
 ```
 
@@ -73,6 +74,7 @@ detachment, because no failure law is modelled.
 | Curved mesh | Biofilm strip offset along the surface normal | `build_curved_layer_mesh` (`src/curved_layer_mesh.py`) |
 | Structural FEM | Plane-strain linear elasticity, prescribed base motion | `solve_curved_biofilm` (`src/curved_structural_fem.py`) |
 | Indicators | σ_e, σ_t, ε_t, interface $t_n$ and $t_s$ | `solve_curved_biofilm`, `calculate_interface_traction` (`src/interface_traction.py`) |
+| Cohesive vulnerability | Failure index $\sigma_e/\sigma_c$ and overstressed-area fraction under assumed strengths | `cohesive_failure_metrics` (final notebook, Section 16; postprocessing only) |
 | Grid integration | Element fields → Cartesian cells | `fem_to_grid` (`src/grid_mapping.py`) |
 
 All geometry is specified in micrometres (μm). The FEM converts to SI units internally (Section 9).
@@ -644,6 +646,99 @@ tractions depend on the mesh (see [VALIDATION_AND_LIMITATIONS.md §8](VALIDATION
 No adhesion strength is known, so these values indicate where and how strongly the interface is loaded, not
 whether it debonds.
 
+### 10.5 Picioreanu-inspired cohesive vulnerability (threshold postprocessing)
+
+Sections 10.1–10.4 quantify *loading*. To ask whether that loading matters, we need a strength to compare it
+with. This subsection describes a postprocessing step that compares the existing von Mises field with an
+**assumed cohesion strength**. It extends the original FEM results without changing the solver, the governing
+equations or any stress value.
+
+**Origin of the criterion.** Picioreanu, van Loosdrecht and Heijnen<sup>[L1]</sup> modelled biofilm detachment
+caused by liquid flow and assumed that biofilm fails where an equivalent stress exceeds a cohesion strength
+(their $\sigma_t$, "cohesion strength"). They justified this with the **maximum-distortion-energy** theory. For
+an isotropic linear-elastic solid, the distortion-energy density is
+
+$$
+U_d=\frac{1}{12G}\left[(\sigma_1-\sigma_2)^2+(\sigma_2-\sigma_3)^2+(\sigma_3-\sigma_1)^2\right]=\frac{\sigma_e^2}{6G},
+\qquad G=\frac{E}{2(1+\nu)},
+$$
+
+where $\sigma_{1,2,3}$ are the principal stresses. In uniaxial tension at the strength $\sigma_c$,
+$U_d=\sigma_c^2/(6G)$. "Distortion energy exceeds its critical value" is therefore equivalent to
+$\sigma_e>\sigma_c$: the von Mises stress is simply the stress measure that makes this criterion
+one-dimensional.
+
+**Equivalent stress used here.** We keep our existing 3D von Mises stress (Section 10.1), which includes the
+plane-strain out-of-plane stress $\sigma_{zz}=\nu(\sigma_{xx}+\sigma_{yy})$. Picioreanu et al.'s printed
+criterion, their eq. (1), is the in-plane expression
+
+$$
+\sigma_e^2=\sigma_X^2-\sigma_X\sigma_Y+\sigma_Y^2+3\tau_{XY}^2,
+$$
+
+which omits $\sigma_{zz}$, the plane-stress form, even though their stress problem is plane strain. We did
+**not** substitute that expression. Substituting $\sigma_{zz}=\nu(\sigma_{xx}+\sigma_{yy})$ shows how the two
+differ:
+
+$$
+\sigma_{e,\text{3D}}^2=\sigma_{e,\text{eq.(1)}}^2-\nu(1-\nu)\,(\sigma_{xx}+\sigma_{yy})^2 .
+$$
+
+For the same stress state, our equivalent stress is therefore smaller than or equal to theirs; the two are
+equal only where $\sigma_{xx}+\sigma_{yy}=0$. Numerical strengths are not directly transferable between the two
+definitions.
+
+**Failure index.** For element $k$ and an assumed cohesion strength $\sigma_c$:
+
+$$
+\boxed{FI_k=\frac{\sigma_{e,k}}{\sigma_c}},\qquad \text{threshold exceeded if }FI_k>1\ \ (\text{strict}).
+$$
+
+$FI$ is dimensionless. Because $\sigma_e\propto E\,\lvert\mathbf u_b\rvert$ under prescribed displacement
+(Section 12.1), $FI\propto E\,\Delta\theta/\sigma_c$. Only the ratio of the assumed strength to the assumed
+stiffness and movement matters.
+
+**Overstressed-area fraction.**
+
+$$
+\boxed{f_{\mathrm{over}}=\frac{\sum_kA_k\,\mathbb 1(\sigma_{e,k}>\sigma_c)}{\sum_kA_k}}
+$$
+
+$f_{\mathrm{over}}$ is the fraction of a biofilm's own cross-sectional area that exceeds the threshold. Since
+each biofilm is normalized by its own area, the notebook also reports the absolute overstressed area
+$\sum_kA_k\,\mathbb 1(\cdot)$. Neither quantity is detached biomass.
+
+**Cohesion-strength sensitivity.** Our biofilm's cohesion strength is unknown, so $f_{\mathrm{over}}$ is
+evaluated over an exploratory range $\sigma_c\in[0.01,1]$ Pa. Picioreanu et al. used 0.4 and 1.0 Pa; the
+lower values in our range are our own assumptions.
+
+**Strength-retention sensitivity.** A biological intervention that thins the biofilm may also change its
+matrix strength (Section 3.3). We let the reduced-thickness biofilm have its own strength,
+
+$$
+\beta=\frac{\sigma_{c,\mathrm{reduced}}}{\sigma_{c,\mathrm{baseline}}},\qquad
+\Delta f=f_{\mathrm{over,reduced}}\!\left(\beta\sigma_{c,\mathrm{baseline}}\right)-f_{\mathrm{over,baseline}}\!\left(\sigma_{c,\mathrm{baseline}}\right),
+$$
+
+and map $\Delta f$ over $(\sigma_{c,\mathrm{baseline}},\beta)$. $\Delta f<0$ means the reduced-thickness biofilm
+has the smaller overstressed fraction. $f_{\mathrm{over,reduced}}$ is non-increasing in its threshold, so for
+each baseline strength there is a single **crossover** $\beta^*$: for $\beta<\beta^*$, thinning no longer
+lowers $f_{\mathrm{over}}$. The notebook computes $\beta^*$ directly, rather than reading it from the colour
+map.
+
+**Why this is postprocessing, not a fracture model.** Picioreanu et al. used the criterion inside a coupled
+algorithm. Overstressed elements were turned into liquid, the flow and stress fields were recomputed, and
+growth continued, so detachment changed the geometry iteratively. They also assumed cohesion and adhesion
+strength to be equal. Our analysis does none of this. Elements are only **flagged**; nothing is deleted;
+equilibrium is not recomputed; the geometry is not updated; no crack grows; and no biomass is removed. The
+threshold is applied to bulk elements (cohesion), while the interface is characterized separately by
+tractions (Section 10.4, adhesion). $f_{\mathrm{over}}$ is a hypothetical **cohesive vulnerability
+indicator** under an assumed strength. It is not a predicted fractured, detached or fragmented fraction.
+
+Implementation: `cohesive_failure_metrics` in the final notebook (Section 16) and in
+`04_bellows_deformation.ipynb` (sections 45–47). It operates on `result["sigma_e"]` and `result["areas"]` from
+`solve_curved_biofilm`.
+
 ---
 
 ## 11. Stochastic comparison
@@ -813,8 +908,11 @@ same as conserving force.
 5. **Indicators:** element-averaged von Mises stress, principal tensile stress (including $\sigma_{zz}$),
    principal tensile strain, and interfacial normal and shear traction. These are loading measures, not
    failure predictions.
-6. **Experiments:** 20 paired morphologies, plus one-at-a-time sensitivity to $E$, $\nu$, $\Delta\theta$ and $R_0$.
-7. **Integration:** a conservative, area-weighted, one-way projection of element fields onto a Cartesian grid.
+6. **Cohesive vulnerability:** a Picioreanu-inspired threshold $\sigma_e>\sigma_c$ applied as postprocessing,
+   giving the overstressed-area fraction over assumed cohesion strengths and strength-retention factors
+   $\beta$. No element deletion or fracture is simulated.
+7. **Experiments:** 20 paired morphologies, plus one-at-a-time sensitivity to $E$, $\nu$, $\Delta\theta$ and $R_0$.
+8. **Integration:** a conservative, area-weighted, one-way projection of element fields onto a Cartesian grid.
 
 ---
 

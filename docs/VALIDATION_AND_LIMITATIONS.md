@@ -15,7 +15,7 @@ trusted. Every number has one of three provenances:
 
 | Activity | Question it answers | Status |
 |---|---|---|
-| **Code verification** | Does the code solve the stated equations correctly? | **Done** for geometry, kinematics, boundary conditions, rigid-body invariance, linear scaling and grid conservation (§2, §3, §9). One postprocessing error in the principal strains was found and fixed (§3.5). |
+| **Code verification** | Does the code solve the stated equations correctly? | **Done** for geometry, kinematics, boundary conditions, rigid-body invariance, linear scaling, the cohesive failure index and grid conservation (§2, §3, §9). One postprocessing error in the principal strains was found and fixed (§3.5). |
 | **Numerical convergence** | Are results insensitive to mesh resolution? | **Done** for bulk stress and strain indicators and for interface tractions (§4, §8). |
 | **Experimental validation** | Do the equations and parameters describe real biofilms on real bellows? | **Not done.** No measurements of our engineered biofilm's mechanics or adhesion, of its thickness under any proposed thinning intervention, or of bellows kinematics have been compared with the model. |
 
@@ -141,8 +141,25 @@ after the fix. The final notebook asserts this.
 | 20-seed range of max strain reduction; pairs reduced | 52.15–63.59 %; 20/20 | 53.38–67.33 %; 20/20 (F) |
 | Flat-substrate baseline max principal strain (notebook 02 case) | 0.1273 % | 0.1135 % (D) |
 
-The exploratory notebooks 02–04 were not rerun and still show the pre-fix strain values. All strain values
+Notebook 04 has since been rerun with the corrected solvers, and its strain outputs match the values above.
+Notebooks 02 and 03 were not rerun and still show pre-fix strain values. All strain values
 quoted elsewhere in this document are post-fix, unless they are explicitly marked as pre-fix.
+
+### 3.6 Cohesive failure-index verification
+
+The threshold postprocessing of [METHODOLOGY.md §10.5](METHODOLOGY.md#105-picioreanu-inspired-cohesive-vulnerability-threshold-postprocessing)
+is checked in the final notebook, Section 16 (F):
+
+| Check | Result | Criterion |
+|---|---|---|
+| Synthetic three-element test ($\sigma_e=0.05,0.10,0.20$ Pa, $A=1,2,3$): $f_{\mathrm{over}}$ at $\sigma_c=0.15$, 10, 0.001 Pa | 0.5, 0, 1 | exact |
+| Tie case: $\sigma_c=0.10$ Pa, element with $FI=1$ exactly | not counted ($f=0.5$) | strict inequality $FI>1$ |
+| Representative pair at $\sigma_c=0.1$ Pa vs. notebook 04 (P) | max $FI$ 2.694 / 1.063; $f_{\mathrm{over}}$ 1.78 % / 0.11 % | identical to rounding |
+| Phase-diagram entry vs. direct calculation | identical ($\Delta f=0.000970$ at the tested grid point) | $<10^{-12}$ |
+| Sign convention: $\Delta f$ at $\beta=1$ over all baseline strengths | $\max\Delta f=0$ | $\le0$ |
+| Fractions vanish above the peak stress | both zero from $\sigma_c=0.2736$ Pa (grid value); baseline max $\sigma_e=0.2694$ Pa | consistent |
+
+The analysis operates on $\sigma_e$ only, so it is unaffected by the Stage 4 strain-convention fix (§3.5).
 
 ---
 
@@ -337,6 +354,41 @@ profiles it collapses to within about 5 %, because local thickness at the fold, 
 the peak. $\chi$ is a useful organizing parameter, consistent with the bending-strain scaling
 $\varepsilon\sim\chi\,\Delta\theta/(\pi-\theta_0)$, but it is not an exact similarity variable.
 
+### 7.4 Cohesion-strength and strength-retention sensitivity (F)
+
+Representative seed-42 pair, $60^\circ\rightarrow60.5^\circ$, $E=64$ Pa, $\nu=0.3$.
+
+**At one assumed strength** ($\sigma_c=0.1$ Pa):
+
+| | Max $FI$ | $f_{\mathrm{over}}$ | Overstressed area | Total area |
+|---|---:|---:|---:|---:|
+| Baseline thickness ($\alpha=1$) | 2.694 | 1.781 % | 76.2 μm² | 4278.3 μm² |
+| Reduced thickness ($\alpha=0.5$) | 1.063 | 0.115 % | 2.5 μm² | 2174.3 μm² |
+
+**Over assumed strengths 0.01–1 Pa** (200 values):
+
+- $f_{\mathrm{over}}$ decreases as the assumed strength increases.
+- The reduced-thickness biofilm is never more overstressed than the baseline: 0 of 200 strengths.
+- Above $\sigma_c\approx0.27$ Pa, which is the baseline peak stress, neither biofilm exceeds the threshold.
+- In particular, at Picioreanu et al.'s strengths of 0.4 and 1.0 Pa, there is no exceedance at this movement
+  and stiffness. Because $FI\propto E\,\Delta\theta/\sigma_c$, this conclusion moves with the assumed $E$ and
+  $\Delta\theta$.
+
+**Strength retention.** For the reduced-thickness biofilm with strength $\beta\sigma_{c,\mathrm{baseline}}$, the
+computed crossover $\beta^*$, below which thinning no longer lowers $f_{\mathrm{over}}$, is:
+
+| Baseline $\sigma_c$ (Pa) | 0.03 | 0.05 | 0.10 | 0.20 | 0.25 |
+|---|---:|---:|---:|---:|---:|
+| Baseline $f_{\mathrm{over}}$ | 13.65 % | 9.11 % | 1.78 % | 0.26 % | 0.06 % |
+| Crossover $\beta^*$ | 0.291 | 0.418 | 0.617 | 0.470 | 0.418 |
+
+$\beta^*$ is not monotonic in the baseline strength and is not a universal constant. It depends on how the
+stress is distributed over the element areas of the two biofilms. A visual reading of the colour map near
+$\sigma_c=0.10$ Pa suggests a transition around $\beta\approx0.4$–$0.5$, because small positive $\Delta f$ is
+nearly white. The computed crossover there is $\beta^*=0.617$, which the notebook marks on the map with the
+$\Delta f=0$ contour. Where both fractions are zero (high strength, moderate $\beta$), $\Delta f=0$ means only
+that neither biofilm exceeds the threshold. It does not mean the two are mechanically equivalent.
+
 ---
 
 ## 8. Interfacial traction convergence
@@ -514,6 +566,34 @@ kinematics. Parameter values are illustrative and drawn from the literature on o
 
 ---
 
+### 10.16 Cohesive threshold analysis
+
+- **No calibrated cohesion strength.** $\sigma_c$ and $\beta$ are scanned, not measured. No strength, nor its
+  change under any proposed intervention, has been determined for our biofilm. Picioreanu et al.'s values
+  (0.4, 1.0 Pa) were themselves assumptions for a different system.
+- **Von Mises as a biofilm criterion.** The distortion-energy criterion comes from the yielding of ductile
+  solids. It is insensitive to hydrostatic stress and does not distinguish tension from compression. Using it for
+  a soft, viscoelastic, heterogeneous gel follows Picioreanu et al. but is unvalidated. Our 3D form also differs
+  from their printed eq. (1); see METHODOLOGY §10.5.
+- **No crack propagation or element deletion.** Overstressed elements are flagged, not removed. Stresses are
+  not redistributed after "failure", so cascading failure, crack paths and post-failure geometry are not
+  represented.
+- **Cohesive versus adhesive failure.** The threshold is applied to bulk elements (cohesion). Adhesive failure
+  at the metal is characterized only through interface tractions, for which no adhesion strength is known.
+  Picioreanu et al. assumed the two strengths were equal; we make no such assumption, and we do not compare
+  tractions with a strength.
+- **Uncertain biological changes.** Matrix-targeting interventions may change stiffness as well as strength.
+  The $\beta$ analysis varies strength only, at fixed $E$. Since $FI\propto E/\sigma_c$, a simultaneous change
+  in $E$ would shift the crossover.
+- **Convergence is not validity.** Mesh convergence of $\sigma_e$ (§4) supports the numerical stability of
+  $f_{\mathrm{over}}$ near the stress peak. It does not show that exceeding the threshold corresponds to real
+  failure.
+- **Overstressed area is not detached biomass.** $f_{\mathrm{over}}$ is normalized by each biofilm's own area,
+  so a larger fraction does not imply more vulnerable biomass in absolute terms. Neither the fraction nor the
+  absolute overstressed area predicts detachment probability, detached mass or fragment size.
+
+---
+
 ## 11. Defensible scientific conclusions
 
 ### What the model demonstrates
@@ -530,6 +610,9 @@ kinematics. Parameter values are illustrative and drawn from the literature on o
    reductions persist on a 4× finer mesh.
 4. The relative reductions do not depend on $E$, shift by at most about 5 percentage points over $\nu=0.2$–$0.45$,
    and remain positive for every opening-angle change and fold radius tested.
+5. At equal assumed cohesion strength (0.01–1 Pa), the reduced-thickness biofilm never has the larger
+   overstressed-area fraction. With a strength-retention factor $\beta$ below a computed crossover $\beta^*$
+   (0.29–0.62 for baseline strengths of 0.03–0.25 Pa), it does.
 
 ### What the model suggests
 
@@ -540,18 +623,22 @@ kinematics. Parameter values are illustrative and drawn from the literature on o
    scales with $h/R_0$).
 2. Sharper folds are mechanically more demanding locations for attached biofilm, and thickness reduction helps
    most there.
-3. If a thinning intervention does not weaken the biofilm in proportion, thinner biofilm could be mechanically less
-   vulnerable to bellows cycling.
+3. Reducing thickness lowers the stresses generated by bellows deformation, but whether this lowers cohesive
+   vulnerability depends on the biofilm's strength. **Thickness and cohesion strength must be considered
+   jointly.** Thinning helps if strength is largely retained, and its benefit can be offset by a sufficiently
+   large loss of strength.
 
 ### What the model cannot establish
 
-1. Whether any biofilm fractures, detaches or sloughs, or how much biomass is released.
+1. Whether any biofilm fractures, detaches or sloughs, how much biomass is released, or what size the fragments
+   are. Threshold exceedance is not fragmentation.
 2. Whether any proposed intervention (SinI/SinR matrix control, matrix-degrading enzymes, γ-PGA-associated
    dispersal) actually halves thickness, or how it alters stiffness, cohesion or adhesion.
 3. Absolute stress levels in real ISS biofilms, given the uncalibrated $E$ and $\nu$ and the absence of
    viscoelasticity.
 4. Behaviour under large bellows strokes, fluid loading, contact, or repeated cycling (fatigue).
-5. Any effect on filter clogging or mission operations.
+5. Any effect on filter clogging or mission operations, or that thinning always reduces clogging risk.
+6. The actual cohesion strength of our biofilm, or the value of $\beta$ produced by any intervention.
 
 ---
 

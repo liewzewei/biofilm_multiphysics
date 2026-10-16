@@ -103,6 +103,15 @@ field does not have exactly one value per triangle.
 Individual tensor components, such as `result["stress"][:, k]`, can also be mapped, but they are tied to the FEM
 axes (§16).
 
+**Derived cohesive-vulnerability fields** (computed from `sigma_e` in a few lines; see §10.1):
+
+| Field name (suggested) | Definition | Notes |
+|---|---|---|
+| `failure_index` | $FI_k=\sigma_{e,k}/\sigma_c$ | Dimensionless. Requires an **assumed** cohesion strength $\sigma_c$ |
+| `overstressed_indicator` | $\mathbb 1(FI_k>1)$, i.e. 1.0 or 0.0 per element | Binary at the element level only |
+| `cohesion_strength_Pa` | $\sigma_c$ per element | Only meaningful if a spatially varying strength is ever specified; currently uniform and assumed |
+| `tensile_stress_Pa`, `von_mises_Pa` | `principal_tensile_stress`, `sigma_e` | As above |
+
 ## 7. Required input array shapes
 
 | Array | Shape | dtype |
@@ -149,6 +158,59 @@ $$
 $\overline q_{ij}$ is the average of $q$ over the **biofilm-covered part** of the cell. To obtain an amount per
 whole cell, for example the area integral in the cell, use $\phi_{ij}\lvert G_{ij}\rvert\,\overline q_{ij}$.
 Averaging smooths peaks, so $\max_{ij}\overline q_{ij}\le\max_k q_k$.
+
+
+### 10.1 Mapping cohesive-vulnerability fields
+
+The final notebook (Section 16) defines a Picioreanu-inspired threshold postprocessing
+([METHODOLOGY.md §10.5](METHODOLOGY.md#105-picioreanu-inspired-cohesive-vulnerability-threshold-postprocessing)).
+Its outputs are ordinary element-averaged scalars, so `fem_to_grid` maps them without any change. The snippet
+below was run with the repository modules: the overstressed area was 76.218 μm² before and after mapping.
+
+```python
+sigma_c = 0.1                                           # Pa, ASSUMED cohesion strength
+failure_index = result["sigma_e"] / sigma_c             # (M,)
+overstressed = (failure_index > 1.0).astype(float)      # (M,), 1.0 or 0.0 per element
+
+grid = fem_to_grid(
+    points=points_um,
+    triangles=result["triangles"],
+    fields={
+        "von_mises_Pa": result["sigma_e"],
+        "tensile_stress_Pa": result["principal_tensile_stress"],
+        "failure_index": failure_index,
+        "overstressed_indicator": overstressed,
+        "cohesion_strength_Pa": np.full(len(failure_index), sigma_c),
+    },
+    x_edges=x_edges_um,
+    y_edges=y_edges_um,
+)
+
+phi = grid["occupancy_fraction"]
+over_frac_cell = grid["fields"]["overstressed_indicator"]   # in [0, 1], NaN where phi == 0
+cell_area_um2 = np.diff(y_edges_um)[:, None] * np.diff(x_edges_um)[None, :]
+
+# Overstressed area is conserved by the mapping
+A_over_fem = result["areas"][overstressed == 1].sum() / UM**2
+A_over_grid = np.nansum(over_frac_cell * phi * cell_area_um2)
+print(f"overstressed area: FEM {A_over_fem:.3f} μm², grid {A_over_grid:.3f} μm²")
+```
+
+How to read the mapped fields:
+
+- **`overstressed_indicator` is not binary after mapping.** Its cell value is the fraction of the cell's
+  *biofilm-occupied* area that exceeds the assumed threshold, a number in $[0,1]$. In the test above, 22 cells
+  had fractional values. The overstressed area in a cell is
+  $\phi_{ij}\lvert G_{ij}\rvert\,\overline{\mathbb 1}_{ij}$. Thresholding the mapped value (for example at 0.5)
+  would create a new, grid-dependent classification that the FEM did not compute.
+- **Keep `occupancy_fraction` separate.** $\phi_{ij}$ says how much of the cell is biofilm. The mapped indicator
+  says how much of *that biofilm* is overstressed. Multiplying them gives the overstressed fraction of the
+  whole cell.
+- **`failure_index` is smoothed.** For a uniform $\sigma_c$ the mapped value equals the mapped von Mises stress
+  divided by $\sigma_c$ (verified). Its maximum is lower than the FEM maximum (2.43 against 2.69 in the test),
+  because averaging smooths peaks.
+- **None of these fields is a fracture or fragmentation map.** They describe threshold exceedance under an
+  assumed strength. The FEM does not delete elements, propagate cracks or compute detached biomass.
 
 ## 11. Treatment of empty grid cells (NaN)
 
@@ -276,7 +338,7 @@ np.savez_compressed(
 ```
 
 The FEM part takes under a second, and mapping a 150 × 110 grid takes well under a second. The final notebook
-(Section 16) shows the same mapping on a 100 × 100 grid with plots.
+(Section 17) shows the same mapping on a 100 × 100 grid with plots.
 
 ## 14. Conservation verification
 
@@ -350,6 +412,22 @@ Record `theta`, `offset_um` and any reflection with the exported arrays.
 
 ## 17. Potential future coupling (not implemented)
 
+A possible end-to-end chain, of which **only the last two arrows exist today**:
+
+```
+Biological model(s)                      (not coupled)
+      ↓
+Biofilm geometry and material properties (not coupled; FEM uses synthetic h(s), uniform E, ν, assumed σc)
+      ↓
+Structural FEM                           (implemented)
+      ↓
+Mechanical stress fields                 (implemented)
+      ↓
+Cohesive vulnerability indicators        (implemented as postprocessing, assumed σc)
+      ↓
+Cartesian-grid export                    (implemented: fem_to_grid, one-way)
+```
+
 The coupling paths below are **proposals**. Each requires constitutive information we do not yet have.
 
 | Direction | Idea | What would be needed |
@@ -357,7 +435,7 @@ The coupling paths below are **proposals**. Each requires constitutive informati
 | Biomass density → geometry | Extract the biofilm outline from a thresholded biomass field and build the FEM mesh from it, replacing the synthetic $h(s)$ | A justified occupancy threshold; an inverse mapping from grid to boundary; handling of holes, islands and overhangs, which the current normal-offset mesher cannot represent |
 | γ-PGA concentration → stiffness | Spatially varying $E(\mathbf x)=f(C_{\gamma\text{PGA}})$ | Measured modulus–concentration data. The FEM currently supports only uniform $E$, so `solve_curved_biofilm` would need per-element material values |
 | γ-PGA concentration → strength | Local strength $\sigma_c(\mathbf x)=g(C_{\gamma\text{PGA}})$ used to normalize stress ($\sigma_t/\sigma_c$) | Measured cohesive or tensile strength; a validated failure criterion |
-| Mechanical loading → fragmentation | Use mapped $\sigma_t$ or interface $t_n^+$ as an input to a detachment rate in the dispersion model | A calibrated detachment law. **Stress alone does not predict fragmentation, fragment size or detached biomass** |
+| Mechanical loading → fragmentation | Use mapped $\sigma_t$, `failure_index` or interface $t_n^+$ as an input to a detachment rate in the dispersion model | A calibrated detachment law and a measured cohesion strength. **Neither stress nor threshold exceedance predicts fragmentation, fragment size or detached biomass** |
 
 Even with these links, the dispersion model's effective pressure should not be applied as a mechanical
 traction without a derivation that connects the two (§2).
@@ -368,11 +446,13 @@ traction without a derivation that connects the two (§2).
    dependence and does not feed back.
 2. **Geometry is not shared.** The FEM biofilm comes from the synthetic generator, not from the dispersion
    model's biomass field. Overlaying them on one grid does not mean they describe the same biofilm.
-3. **Scalar element fields only.** No nodal fields, no interface tractions (boundary quantities), and no
+3. **Assumed strength.** Cohesive-vulnerability fields depend on an assumed, uncalibrated $\sigma_c$, and they
+   change if $E$ or the bellows movement changes ($FI\propto E\,\Delta\theta/\sigma_c$).
+4. **Scalar element fields only.** No nodal fields, no interface tractions (boundary quantities), and no
    automatic tensor rotation.
-4. **Smoothing.** Cell averages under-represent peaks. Use FEM values directly for peak-stress statements.
-5. **Coverage.** Conservation holds only if the grid covers the whole mesh. The function does not warn when
+5. **Smoothing.** Cell averages under-represent peaks. Use FEM values directly for peak-stress statements.
+6. **Coverage.** Conservation holds only if the grid covers the whole mesh. The function does not warn when
    part of the mesh falls outside the grid.
-6. **Inherited model limitations.** Everything in
+7. **Inherited model limitations.** Everything in
    [VALIDATION_AND_LIMITATIONS.md §10](VALIDATION_AND_LIMITATIONS.md#10-scientific-limitations) applies to the
    mapped fields, including illustrative $E$ and $\nu$, and the absence of viscoelasticity and fracture.

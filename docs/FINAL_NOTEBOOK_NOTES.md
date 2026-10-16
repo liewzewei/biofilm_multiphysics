@@ -10,7 +10,7 @@ shear-strain convention (item 10 below).
 The step-by-step commands are in the [README](../README.md#quick-start-reproduce-everything). In short:
 create the environment from `environment.yml`, then execute the notebook with `nbconvert`, then run `pytest`.
 
-Runtime is about 10 s. All 22 verification checks pass, and a failing check stops execution with an `assert`.
+Runtime is about 10 s. All 28 verification checks pass, and a failing check stops execution with an `assert`.
 Every random profile comes from an explicitly seeded `np.random.default_rng(seed)`. A fresh environment built
 from `environment.yml` reproduced every text output of the notebook identically (macOS, Apple Silicon).
 `jax` is not required; SfePy's import warning about it is harmless.
@@ -42,6 +42,7 @@ The final notebook recomputes these, and they match `04_bellows_deformation.ipyn
 | Representative pair: max principal tensile stress reduction | 62.22 % |
 | Interface reductions: max $t_n^+$ / max $\lvert t_s\rvert$ / mean $t_n^+$ / mean $\lvert t_s\rvert$ | 70.89 / 49.39 / 76.86 / 71.96 % |
 | Opening-angle and ν sensitivity, E scaling, FEM-to-grid conservation | identical to the 04 outputs |
+| Cohesive analysis at σc = 0.1 Pa (04, section 45): max FI and overstressed fraction, baseline / reduced | 2.694 / 1.063 and 1.78 % / 0.11 % |
 
 The following are cited as *previously obtained* and are not rerun: curved and flat mesh-convergence studies,
 interface-traction convergence, flat-substrate traction ensemble (−23.96 %), the analytical unit tests of the
@@ -78,10 +79,14 @@ principal-stress and traction formulas.
 8. **Hard-coded constant in notebook 03.** `F_REF = 5.252825e-6` N/m is copied from notebook 02's output.
 9. **Stray artifact.** `notebooks/biofilm_domain.vtk` (4 MB) was written by `problem.solve()` with default
    saving in notebook 02, cell 15.
-10. **Shear-strain convention (found in Stage 3, fixed in Stage 4).** SfePy's `ev_cauchy_strain` returns $\gamma_{xy}=2\varepsilon_{xy}$, and both solvers used it as $\varepsilon_{xy}$, which overestimated principal strains. Both solvers now halve it, and `tests/test_strain_convention.py` covers the fix. Stress outputs were unaffected. Notebooks 02–04 still show the pre-fix strain values. See `VALIDATION_AND_LIMITATIONS.md` §3.5.
+10. **Shear-strain convention (found in Stage 3, fixed in Stage 4).** SfePy's `ev_cauchy_strain` returns $\gamma_{xy}=2\varepsilon_{xy}$, and both solvers used it as $\varepsilon_{xy}$, which overestimated principal strains. Both solvers now halve it, and `tests/test_strain_convention.py` covers the fix. Stress outputs were unaffected. Notebook 04 has since been rerun with the corrected solvers; notebooks 02–03 still show the pre-fix strain values. See `VALIDATION_AND_LIMITATIONS.md` §3.5.
 11. **Observation, not verified.** The mean-stress reduction drifts with opening-angle change
     (57.1 % → 52.6 % for Δθ = 0.1° → 1°) while the max-stress reduction stays at about 60.5 %. This is
     consistent with linearization error from finite flank rotation, so Δθ should stay small.
+12. **Strength-retention transition (04, section 47).** Read visually from the heatmap, the transition near
+    σc,baseline = 0.10 Pa appears around β ≈ 0.4–0.5, because small positive Δf renders nearly white. Computed
+    from the same data, Δf changes sign at β* = 0.617. The final notebook draws the Δf = 0 contour and
+    tabulates β* (0.29–0.62 for 0.03–0.25 Pa). Notebook 04 itself was not changed.
 
 ## Not yet covered
 
